@@ -17,11 +17,16 @@ class Net(nn.Module):
         super().__init__()
 
         self.layers = nn.Sequential(
-            nn.Linear(28, 16),
+            nn.Linear(30, 16),
             nn.Dropout(DROP),
             nn.ReLU(),
             nn.BatchNorm1d(16),
-            nn.Linear(16, 1),
+            nn.Linear(16, 8),
+            nn.Dropout(DROP),
+            nn.ReLU(),
+            nn.BatchNorm1d(8),
+            nn.Linear(8, 1),
+            # nn.Dropout(DROP),
             nn.Sigmoid()
         )
     
@@ -114,6 +119,7 @@ def main():
 
 
     best_val = 10000
+    best_acc = 0
     loss_log = open("loss.csv", "w")
     for epoch in range(starting_epoch, EPOCHS):
         model.train()
@@ -145,11 +151,10 @@ def main():
         model.eval()
         val_loss, val_accuracy = evaluate(model, validation_data, validation_outputs, loss_fn)
         training_loss, train_accuracy = evaluate(model, training_data, training_outputs, loss_fn)
-        print(f"Training loss: {train_loss}")
-        print(f"Training Accuracy: {train_accuracy}")
-        print(f"Validation loss: {val_loss}")
-        print(f"Validation Accuracy: {val_accuracy}")
-        # time.sleep(1)
+        # print(f"Training loss: {train_loss}")
+        # print(f"Training Accuracy: {train_accuracy}")
+        # print(f"Validation loss: {val_loss}")
+        # print(f"Validation Accuracy: {val_accuracy}")
 
         loss_log.write(f"{epoch},{train_loss},{val_loss},{train_accuracy},{val_accuracy}\n")
         if epoch % 10 == 0:
@@ -159,7 +164,14 @@ def main():
             best_val = val_loss
             torch.save({"model": model, "optimizer": optimizer, "epoch": epoch}, "best_model.pth")
 
+        if val_accuracy > best_acc:
+            best_acc = val_accuracy
+
 
     torch.save({"model": model, "optimizer": optimizer, "epoch": epoch}, "model.pth")
+    model.eval()
+    print(f"Validation loss: {best_val}")
+    print(f"Validation Accuracy: {best_acc}")
+
 if __name__ == "__main__":
     main()

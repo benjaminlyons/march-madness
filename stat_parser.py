@@ -1,6 +1,7 @@
 import pandas as pd
+import numpy as np
 
-STATS = [ "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
+STATS = [ "W-L%", "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
 
 def main():
     game_logs_df = pd.read_csv("game_logs.csv")
@@ -18,14 +19,16 @@ def main():
             if team2 not in team_stats_df["School"].values:
                 continue
 
-            team1_stats = team_stats_df.loc[team_stats_df["School"] == team1][STATS].to_numpy()[0].tolist()
-            team2_stats = team_stats_df.loc[team_stats_df["School"] == team2][STATS].to_numpy()[0].tolist()
+            team1_stats = team_stats_df.loc[team_stats_df["School"] == team1][STATS].to_numpy()[0]
+            team2_stats = team_stats_df.loc[team_stats_df["School"] == team2][STATS].to_numpy()[0]
+            # stats = np.subtract(team1_stats, team2_stats).tolist()
             result = game["result"]
 
-            print(team1_stats)
-            print(team2_stats)
+            # print(team1_stats)
+            # print(team2_stats)
             f.write(",".join([str(x) for x in team1_stats]) + ",")
             f.write(",".join([str(x) for x in team2_stats]) + ",")
+            # f.write(",".join([str(x) for x in stats]) + ",")
             f.write(str(result) + "\n")
 
 if __name__ == "__main__":
