@@ -1,11 +1,12 @@
 import pandas as pd
 
-STATS = ["W-L%", "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
+STATS = [ "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
 
 def main():
     game_logs_df = pd.read_csv("game_logs.csv")
     team_stats_df = pd.read_csv("team_stats.csv")
 
+    team_stats_df[STATS] = (team_stats_df[STATS] - team_stats_df[STATS].mean()) / team_stats_df[STATS].std()
     print(team_stats_df.loc[team_stats_df['School'] == 'Duke'][STATS].to_numpy()[0])
     print(game_logs_df)
 
