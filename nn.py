@@ -12,27 +12,45 @@ import time
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 DROP = 0.5
+batch_size = 256
+EPOCHS = 500
+
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
 
         self.layers = nn.Sequential(
-            nn.Linear(28, 16),
+            nn.Linear(30, 16),
             nn.Dropout(DROP),
             nn.ReLU(),
             nn.BatchNorm1d(16),
-            nn.Linear(16, 8),
-            nn.Dropout(DROP),
-            nn.ReLU(),
-            nn.BatchNorm1d(8),
-            nn.Linear(8, 1),
-            # nn.Dropout(DROP),
+            nn.Linear(16, 1),
             nn.Sigmoid()
         )
     
     def forward(self, x):
         x = self.layers(x)
         return x
+
+def evaluate(model, inputs, results, loss_fn):
+    model.eval()
+    permutation = torch.randperm(inputs.size()[0])
+    eval_loss = 0
+    incorrect = 0
+    for i in range(0, inputs.size()[0], batch_size):
+        indices = permutation[i:min(i+batch_size, inputs.size()[0])]
+        x, y = inputs[indices], results[indices]
+        outputs = model.forward(x)
+        loss = loss_fn(outputs, y)
+        eval_loss += loss.item()
+
+        diff = torch.round(outputs)
+        diff = torch.subtract(diff, y)
+        diff = torch.abs(diff)
+        incorrect += torch.sum(diff).item()
+    accuracy = (inputs.size()[0] - incorrect) / inputs.size()[0]
+    # print(f"Accuracy: {accuracy}")
+    return eval_loss / inputs.size()[0], accuracy
 
 def main():
     # first we will read and prepare the data
@@ -49,26 +67,6 @@ def main():
         for row in rows:
             stats.append(np.array(row[:-1]))
             results.append(np.array([row[-1]]))
-
-    def evaluate(model, inputs, results, loss_fn):
-        model.eval()
-        permutation = torch.randperm(inputs.size()[0])
-        eval_loss = 0
-        incorrect = 0
-        for i in range(0, inputs.size()[0], batch_size):
-            indices = permutation[i:min(i+batch_size, inputs.size()[0])]
-            x, y = inputs[indices], results[indices]
-            outputs = model.forward(x)
-            loss = loss_fn(outputs, y)
-            eval_loss += loss.item()
-
-            diff = torch.round(outputs)
-            diff = torch.subtract(diff, y)
-            diff = torch.abs(diff)
-            incorrect += torch.sum(diff).item()
-        accuracy = (inputs.size()[0] - incorrect) / inputs.size()[0]
-        # print(f"Accuracy: {accuracy}")
-        return eval_loss / inputs.size()[0], accuracy
 
     stats = torch.tensor(np.array(stats), dtype=torch.float).cuda()
     results = torch.tensor(np.array(results), dtype=torch.float).cuda()
@@ -87,8 +85,6 @@ def main():
     testing_outputs = results[training_size+validation_size:]
 
     # now create the model and optimizers
-    batch_size = 256
-    EPOCHS = 500
 
     load = False
     eval = False
