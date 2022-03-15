@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from nn import Net
 
-STATS = ["W-L%", "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
+STATS = ["SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
 
 def main():
     team_stats_df = pd.read_csv("team_stats.csv")
@@ -25,8 +25,8 @@ def main():
         team1_stats = team1_stats[STATS].to_numpy()
         team2_stats = team2_stats[STATS].to_numpy()
 
-        x = np.subtract(team1_stats, team2_stats)
-        # x = np.concatenate((team1_stats, team2_stats), axis=1)
+        # x = np.subtract(team1_stats, team2_stats)
+        x = np.concatenate((team1_stats, team2_stats), axis=1)
         x = torch.tensor(x, dtype=torch.float).cuda()
         output = model(x)
 
