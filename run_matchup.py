@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import random
 import sys
+import pickle
 from nn import Net
 
 STATS = ["W-L%", "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
@@ -15,8 +16,8 @@ def compute_expected_result(team1, team2, team_stats_df, model):
     team2_stats = team2_stats[STATS].to_numpy()
 
     x = np.concatenate((team1_stats, team2_stats), axis=1)
-    x = torch.tensor(x, dtype=torch.float).cuda()
 
+    x = torch.tensor(x, dtype=torch.float).cuda()
     output = model(x)
 
     result = output.item()
@@ -59,7 +60,7 @@ def compute_bracket(bracket, team_stats_df, model, outfile):
         outfile.write("\n")
         compute_bracket(winners, team_stats_df, model, outfile)
 
-def simulate_bracket(bracket, team_stats_df, model, outfile):
+def simulate_bracket(bracket, team_stats_df, model,  outfile):
 
     if len(bracket) == 1:
         outfile.write(f"National Champion {bracket[0]}")
@@ -88,7 +89,7 @@ def simulate_bracket(bracket, team_stats_df, model, outfile):
         outfile.write("\n")
         simulate_bracket(winners, team_stats_df, model, outfile)
 
-def individual_matchups(team_stats_df, model):
+def individual_matchups(team_stats_df, model, spread_model):
     while True:
         team1 = input("Please enter team1: ").strip()
         if not team1 or team1 == "quit":
@@ -103,13 +104,21 @@ def individual_matchups(team_stats_df, model):
         print(team1_stats)
         print(team2_stats)
 
-        result = compute_expected_result(team1, team2, team_stats_df, model)
+        team1_stats = team1_stats[STATS].to_numpy()
+        team2_stats = team2_stats[STATS].to_numpy()
 
+        x = np.concatenate((team1_stats, team2_stats), axis=1)
+        spread_mean, spread_std = spread_model.predict(x, return_std=True)
+
+        result = compute_expected_result(team1, team2, team_stats_df, model)
 
         if result >= 0.5:
             print(f"{team1} should win with probability {result}")
+            print("Favored by {:0.2f} +/- {:0.2f} points".format(spread_mean[0], 2*spread_std[0]))
         else:
             print(f"{team2} should win with probability {1-result}")
+            print("Favored by {:0.2f} +/- {:0.2f} points".format(-spread_mean[0], 2*spread_std[0]))
+
         print()
 
 def main():
@@ -126,9 +135,11 @@ def main():
 
     if arg == "--sim":
         with open("simulated_bracket.txt", "w") as outfile:
-            simulate_bracket(bracket, team_stats_df, model, outfile)
+            simulate_bracket(bracket, team_stats_df, model,  outfile)
     elif arg == "--ind":
-        individual_matchups(team_stats_df, model)
+        with open("gp_model.pkl", "rb") as f:
+            spread_model = pickle.load(f)
+        individual_matchups(team_stats_df, model, spread_model)
 
     with open("predicted_bracket.txt", "w") as outfile:
         compute_bracket(bracket, team_stats_df, model, outfile)

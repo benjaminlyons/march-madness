@@ -98,6 +98,7 @@ def scrape_team(teamname, linkname, results, schools_scraped):
 
 def main():
     scrape_season()
+
     df = pd.read_csv("team_stats.csv")
     results_headers = ["school1", "school2", "result", "score1", "score2"]
     results = []
