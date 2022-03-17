@@ -4,6 +4,8 @@ import re
 
 import pandas as pd
 import time
+import os
+import sys
 
 ADVANCED_STATS = set(["School", "W-L%", "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]) # these are the stats we care about
 STAT_INDEX = set()
@@ -17,10 +19,11 @@ def parse_headers(row):
             STAT_INDEX.add(index-1)
             if index == 1:
                 headers.append("Link Name")
+                headers.append("Year")
 
     return headers
 
-def parse_row(row):
+def parse_row(row, year):
     row_data = []
     for index, td in enumerate(row.find_all('td')):
         # if its the school name
@@ -29,15 +32,16 @@ def parse_row(row):
             name = name.removesuffix("NCAA").strip()
             row_data.append(name)
             link = td.find('a').get('href').strip()
-            matches = re.search(r'/schools/(.*)/2022.html',link)
+            matches = re.search(r'/schools/(.*)/.*.html',link)
             link = matches.group(1)
             row_data.append(link)
+            row_data.append(str(year))
         elif index in STAT_INDEX:
             row_data.append(td.get_text())
     return row_data
 
-def scrape_season():
-    url = "https://www.sports-reference.com/cbb/seasons/2022-advanced-school-stats.html"
+def scrape_season(year, f, is_first=False):
+    url = f"https://www.sports-reference.com/cbb/seasons/{year}-advanced-school-stats.html"
 
     source = urllib.request.urlopen(url)
     soup = bs4.BeautifulSoup(source, 'lxml')
@@ -54,22 +58,25 @@ def scrape_season():
             headers = parse_headers(row)
             continue
         
-        data.append(parse_row(row))
+        data.append(parse_row(row, year))
 
-    with open('team_stats.csv', "w") as f:
+    if is_first:
         f.write(','.join(headers) + '\n')
 
-        for row in data:
-            if row:
-                f.write(','.join(row) + '\n')
+    for row in data:
+        if row:
+            f.write(','.join(row) + '\n')
 
-def scrape_team(teamname, linkname, results, schools_scraped):
-    url = f"https://www.sports-reference.com/cbb/schools/{linkname}/2022-gamelogs.html"
+def scrape_team(teamname, linkname, year, results, schools_scraped):
+    url = f"https://www.sports-reference.com/cbb/schools/{linkname}/{year}-gamelogs.html"
 
     source = urllib.request.urlopen(url)
     soup = bs4.BeautifulSoup(source, 'lxml')
 
     game_log = soup.find(id='sgl-basic')
+
+    if not game_log:
+        return
 
     games = []
     for index, row in enumerate(game_log.find_all('tr')):
@@ -93,27 +100,35 @@ def scrape_team(teamname, linkname, results, schools_scraped):
 
         score = row.find('td', attrs={'data-stat': 'pts'}).get_text()
         opp_score = row.find('td', attrs={'data-stat': "opp_pts"}).get_text()
-        results.append([teamname, opp, res, score, opp_score])
+        results.append([teamname, str(year), opp, res, score, opp_score])
 
 
 def main():
-    scrape_season()
-
-    df = pd.read_csv("team_stats.csv")
-    results_headers = ["school1", "school2", "result", "score1", "score2"]
-    results = []
+    # with open("all_team_stats.csv", "w") as f:
+    #     for year in range(2017, 2023):
+    #         if year == 2020:
+    #             continue
+    #         elif year == 2017:
+    #             scrape_season(year, f, True)
+    #         else:
+    #             scrape_season(year, f)
+    #
+    df = pd.read_csv("all_team_stats.csv")
+    results_headers = ["school1", "year", "school2", "result", "score1", "score2"]
     schools_scraped = set()
-    for school, linkname in zip(df["School"], df["Link Name"]):
-        print(f"Downloading {school}...", end='')
-        scrape_team(school, linkname, results, schools_scraped)
-        schools_scraped.add(school)
-        time.sleep(1)
-        print("Done!")
-
-    with open('game_logs.csv', 'w') as f:
+    with open('all_game_logs.csv', 'w') as f:
         f.write(",".join(results_headers) + "\n")
-        for game in results:
-            f.write(",".join(game) + "\n")
+        for school, linkname, year in zip(df["School"], df["Link Name"], df["Year"]):
+            print(f"Downloading {school} ({year})...", end='')
+            sys.stdout.flush()
+            results = []
+            scrape_team(school, linkname, year, results, schools_scraped)
+            schools_scraped.add(school + " " + str(year))
+            time.sleep(1)
+            for game in results:
+                f.write(",".join(game) + "\n")
+            f.flush()
+            print("Done!")
 
 if __name__ == "__main__":
     main()

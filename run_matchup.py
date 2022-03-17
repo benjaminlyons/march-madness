@@ -5,24 +5,22 @@ import random
 import sys
 import pickle
 from nn import Net
+from ensemble import ensemble_predict
 
 STATS = ["W-L%", "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
 
-def compute_expected_result(team1, team2, team_stats_df, model):
-    team1_stats = team_stats_df.loc[team_stats_df["School"] == team1]
-    team2_stats = team_stats_df.loc[team_stats_df["School"] == team2]
+def compute_expected_result(team1, team2, team_stats_df, nn_model, gp_model):
+    team1_stats = team_stats_df.loc[team_stats_df["School"] == team1].loc[team_stats_df["Year"] == 2022]
+    team2_stats = team_stats_df.loc[team_stats_df["School"] == team2].loc[team_stats_df["Year"] == 2022]
 
     team1_stats = team1_stats[STATS].to_numpy()
     team2_stats = team2_stats[STATS].to_numpy()
 
     x = np.concatenate((team1_stats, team2_stats), axis=1)
 
-    x = torch.tensor(x, dtype=torch.float).cuda()
-    output = model(x)
+    nn_prob, gp_prob, gp_pred, gp_std = ensemble_predict(x, nn_model, gp_model)
 
-    result = output.item()
-
-    return result
+    return nn_prob, gp_prob, gp_pred, gp_std
 
 # reads bracket from filename, then computes results
 def read_bracket(filename):
@@ -32,7 +30,7 @@ def read_bracket(filename):
             bracket.append(team.strip())
     return bracket
 
-def compute_bracket(bracket, team_stats_df, model, outfile):
+def compute_bracket(bracket, team_stats_df, nn_model, gp_model, outfile):
     if len(bracket) == 1:
         outfile.write(f"National Champion {bracket[0]}")
         return
@@ -44,23 +42,28 @@ def compute_bracket(bracket, team_stats_df, model, outfile):
             team1 = bracket[i]
             team2 = bracket[i+1]
 
-            result1 = compute_expected_result(team1, team2, team_stats_df, model)
-            result2 = compute_expected_result(team2, team1, team_stats_df, model)
-            result = (result1 + 1 - result2) / 2
+            nn_prob1, gp_prob1, gp_pred1, gp_std1 = compute_expected_result(team1, team2, team_stats_df, nn_model, gp_model)
+            nn_prob2, gp_prob2, gp_pred2, gp_std2 = compute_expected_result(team2, team1, team_stats_df, nn_model, gp_model)
+            nn_prob = (nn_prob1 + 1 - nn_prob2) / 2
+            gp_prob = (gp_prob1 + 1 - gp_prob2) / 2
+            gp_pred = (gp_pred1 - gp_pred2) / 2
+            gp_std = (gp_std1 + gp_std2) / 2
+
+            result = (nn_prob + gp_prob) / 2
 
             if result >= 0.5:
                 winner = team1
-                outfile.write("{} vs {} ==> {} ({:0.2f})\n".format(team1, team2, winner, result))
+                outfile.write("{} vs {} ==> {} ({:0.2f}) [{:0.2f}]\n".format(team1, team2, winner, result, -gp_pred))
             else:
                 winner = team2
-                outfile.write("{} vs {} ==> {} ({:0.2f})\n".format(team1, team2, winner, 1-result))
+                outfile.write("{} vs {} ==> {} ({:0.2f}) [{:0.2f}]\n".format(team1, team2, winner, 1-result, gp_pred))
 
             winners.append(winner)
 
         outfile.write("\n")
-        compute_bracket(winners, team_stats_df, model, outfile)
+        compute_bracket(winners, team_stats_df, nn_model, gp_model, outfile)
 
-def simulate_bracket(bracket, team_stats_df, model,  outfile):
+def simulate_bracket(bracket, team_stats_df, nn_model, gp_model, outfile):
 
     if len(bracket) == 1:
         outfile.write(f"National Champion {bracket[0]}")
@@ -73,23 +76,28 @@ def simulate_bracket(bracket, team_stats_df, model,  outfile):
             team1 = bracket[i]
             team2 = bracket[i+1]
 
-            result1 = compute_expected_result(team1, team2, team_stats_df, model)
-            result2 = compute_expected_result(team1, team2, team_stats_df, model)
-            result = (result1 + result2) / 2
+            nn_prob1, gp_prob1, gp_pred1, gp_std1 = compute_expected_result(team1, team2, team_stats_df, nn_model, gp_model)
+            nn_prob2, gp_prob2, gp_pred2, gp_std2 = compute_expected_result(team2, team1, team_stats_df, nn_model, gp_model)
+            nn_prob = (nn_prob1 + 1 - nn_prob2) / 2
+            gp_prob = (gp_prob1 + 1 - gp_prob2) / 2
+            gp_pred = (gp_pred1 - gp_pred2) / 2
+            gp_std = (gp_std1 + gp_std2) / 2
+
+            result = (nn_prob + gp_prob) / 2
 
             if result >= random.random():
                 winner = team1
-                outfile.write("{} vs {} ==> {} ({:0.2f})\n".format(team1, team2, winner, result))
+                outfile.write("{} vs {} ==> {} ({:0.2f}) [{:0.2f}]\n".format(team1, team2, winner, result, -gp_pred))
             else:
                 winner = team2
-                outfile.write("{} vs {} ==> {} ({:0.2f})\n".format(team1, team2, winner, 1-result))
+                outfile.write("{} vs {} ==> {} ({:0.2f}) [{:0.2f}]\n".format(team1, team2, winner, 1-result, gp_pred))
 
             winners.append(winner)
 
         outfile.write("\n")
-        simulate_bracket(winners, team_stats_df, model, outfile)
+        simulate_bracket(winners, team_stats_df, nn_model, gp_model, outfile)
 
-def individual_matchups(team_stats_df, model, spread_model):
+def individual_matchups(team_stats_df, nn_model, gp_model):
     while True:
         team1 = input("Please enter team1: ").strip()
         if not team1 or team1 == "quit":
@@ -98,8 +106,8 @@ def individual_matchups(team_stats_df, model, spread_model):
         
         print(f"Computing {team1} vs {team2}")
 
-        team1_stats = team_stats_df.loc[team_stats_df["School"] == team1]
-        team2_stats = team_stats_df.loc[team_stats_df["School"] == team2]
+        team1_stats = team_stats_df.loc[team_stats_df["School"] == team1].loc[team_stats_df["Year"] == 2022]
+        team2_stats = team_stats_df.loc[team_stats_df["School"] == team2].loc[team_stats_df["Year"] == 2022]
 
         print(team1_stats)
         print(team2_stats)
@@ -107,17 +115,25 @@ def individual_matchups(team_stats_df, model, spread_model):
         team1_stats = team1_stats[STATS].to_numpy()
         team2_stats = team2_stats[STATS].to_numpy()
 
-        x = np.concatenate((team1_stats, team2_stats), axis=1)
-        spread_mean, spread_std = spread_model.predict(x, return_std=True)
+        nn_prob1, gp_prob1, gp_pred1, gp_std1 = compute_expected_result(team1, team2, team_stats_df, nn_model, gp_model)
+        nn_prob2, gp_prob2, gp_pred2, gp_std2 = compute_expected_result(team2, team1, team_stats_df, nn_model, gp_model)
+        nn_prob = (nn_prob1 + 1 - nn_prob2) / 2
+        gp_prob = (gp_prob1 + 1 - gp_prob2) / 2
+        gp_pred = (gp_pred1 - gp_pred2) / 2
+        gp_std = (gp_std1 + gp_std2) / 2
 
-        result = compute_expected_result(team1, team2, team_stats_df, model)
+        result = (nn_prob + gp_prob) / 2
 
         if result >= 0.5:
             print(f"{team1} should win with probability {result}")
-            print("Favored by {:0.2f} +/- {:0.2f} points".format(spread_mean[0], 2*spread_std[0]))
+            print("Favored by {:0.2f} +/- {:0.2f} points".format(gp_pred, gp_std))
+            print(f"GP prob = {gp_prob}")
+            print(f"NN prob = {nn_prob}")
         else:
             print(f"{team2} should win with probability {1-result}")
-            print("Favored by {:0.2f} +/- {:0.2f} points".format(-spread_mean[0], 2*spread_std[0]))
+            print("Favored by {:0.2f} +/- {:0.2f} points".format(-gp_pred, gp_std))
+            print(f"GP prob = {1-gp_prob}")
+            print(f"NN prob = {1-nn_prob}")
 
         print()
 
@@ -129,20 +145,22 @@ def main():
 
     team_stats_df = pd.read_csv("team_stats.csv")
     team_stats_df[STATS] = (team_stats_df[STATS] - team_stats_df[STATS].mean()) / team_stats_df[STATS].std()
-    model = torch.load("best_model.pth")['model'].cuda()
+    nn_model = torch.load("best_model.pth")['model'].cuda()
+    nn_model.eval()
 
     bracket = read_bracket("bracket.txt")
 
+    with open("gp_model.pkl", "rb") as f:
+        gp_model = pickle.load(f)
+
     if arg == "--sim":
         with open("simulated_bracket.txt", "w") as outfile:
-            simulate_bracket(bracket, team_stats_df, model,  outfile)
+            simulate_bracket(bracket, team_stats_df, nn_model, gp_model,  outfile)
     elif arg == "--ind":
-        with open("gp_model.pkl", "rb") as f:
-            spread_model = pickle.load(f)
-        individual_matchups(team_stats_df, model, spread_model)
+        individual_matchups(team_stats_df, nn_model, gp_model)
 
     with open("predicted_bracket.txt", "w") as outfile:
-        compute_bracket(bracket, team_stats_df, model, outfile)
+        compute_bracket(bracket, team_stats_df, nn_model, gp_model, outfile)
 
 if __name__ == "__main__":
     main()

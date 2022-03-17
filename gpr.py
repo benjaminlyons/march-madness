@@ -1,10 +1,11 @@
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel, WhiteKernel
 import numpy as np
 import random
 
 import pickle
 import sys
+import joblib
 
 
 def main():
@@ -37,9 +38,8 @@ def main():
         validation_data = np.array(stats[training_size:])
         validation_outputs = np.array(spreads[training_size:])
 
-        kernel = RBF(length_scale=1.0, length_scale_bounds=(1e-2, 100)) 
-        noise = 2
-        gp = GaussianProcessRegressor(kernel=kernel, alpha=noise**2,  n_restarts_optimizer=9)
+        kernel = ConstantKernel(constant_value=1.0, constant_value_bounds=(0.01,100000.0))*RBF(length_scale=1.0, length_scale_bounds=(1e-2, 10000))  + WhiteKernel(noise_level=1.0, noise_level_bounds=(0.1, 10000))
+        gp = GaussianProcessRegressor(kernel=kernel,  n_restarts_optimizer=9)
         gp.fit(training_data, training_outputs)
 
         mean_prediction, std_prediction = gp.predict(validation_data, return_std=True)
@@ -52,10 +52,13 @@ def main():
 
         with open("gp_model.pkl", "wb") as f:
             pickle.dump(gp, f)
+            # joblib.dump(gp, f, compress=3)
 
     elif sys.argv[1] == "--eval":
         with open("gp_model.pkl", "rb") as f:
             gp = pickle.load(f)
+
+        print(gp.kernel_)
 
         with open("training_data.csv", "r") as f:
             rows = []
@@ -77,6 +80,7 @@ def main():
         validation_outputs = np.array(spreads[training_size:])
 
         mean_prediction, std_prediction = gp.predict(validation_data, return_std=True)
+        print(gp.score(validation_data, mean_prediction))
 
         spreads = mean_prediction.tolist()
 
@@ -86,7 +90,6 @@ def main():
                 correct += 1
         acc = correct / len(spreads)
         
-        print(validation_outputs)
         print(f"Classification Accuracy: {acc}")
         
 

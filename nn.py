@@ -11,7 +11,7 @@ import os
 import time
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-DROP = 0.5
+DROP = 0.4
 batch_size = 256
 EPOCHS = 500
 
