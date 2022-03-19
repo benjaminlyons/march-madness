@@ -85,7 +85,15 @@ def simulate_bracket(bracket, team_stats_df, nn_model, gp_model, outfile):
 
             result = (nn_prob + gp_prob) / 2
 
-            if result >= random.random():
+            win_team1 = 0
+            win_team2 = 0
+            for i in range(7):
+                if result >= random.random():
+                    win_team1 += 1
+                else:
+                    win_team2 += 1
+
+            if win_team1 > win_team2:
                 winner = team1
                 outfile.write("{} vs {} ==> {} ({:0.2f}) [{:0.2f}]\n".format(team1, team2, winner, result, -gp_pred))
             else:
@@ -125,13 +133,21 @@ def individual_matchups(team_stats_df, nn_model, gp_model):
         result = (nn_prob + gp_prob) / 2
 
         if result >= 0.5:
-            print(f"{team1} should win with probability {result}")
+            win_odds = -100*result / (1-result)
+            lose_odds = 100*result / (1-result)
+            print("{} should win with probability {:0.3f}".format(team1, result))
             print("Favored by {:0.2f} +/- {:0.2f} points".format(gp_pred, gp_std))
+            print("{} {}".format(team1, int(win_odds)))
+            print("{} +{}".format(team2, int(lose_odds)))
             print(f"GP prob = {gp_prob}")
             print(f"NN prob = {nn_prob}")
         else:
-            print(f"{team2} should win with probability {1-result}")
+            win_odds = -100*(1-result) / result
+            lose_odds = 100*(1-result) / result
+            print("{} should win with probability {:0.3f}".format(team2, 1-result))
             print("Favored by {:0.2f} +/- {:0.2f} points".format(-gp_pred, gp_std))
+            print("{} {}".format(team2, int(win_odds)))
+            print("{} +{}".format(team1, int(lose_odds)))
             print(f"GP prob = {1-gp_prob}")
             print(f"NN prob = {1-nn_prob}")
 
@@ -139,7 +155,7 @@ def individual_matchups(team_stats_df, nn_model, gp_model):
 
 def main():
     arg = None
-
+    filename = "bracket.txt"
     if len(sys.argv) > 1:
         arg = sys.argv[1]
 
@@ -148,7 +164,7 @@ def main():
     nn_model = torch.load("best_model.pth")['model'].cuda()
     nn_model.eval()
 
-    bracket = read_bracket("bracket.txt")
+    bracket = read_bracket(filename)
 
     with open("gp_model.pkl", "rb") as f:
         gp_model = pickle.load(f)
@@ -156,10 +172,16 @@ def main():
     if arg == "--sim":
         with open("simulated_bracket.txt", "w") as outfile:
             simulate_bracket(bracket, team_stats_df, nn_model, gp_model,  outfile)
+        sys.exit(0)
     elif arg == "--ind":
         individual_matchups(team_stats_df, nn_model, gp_model)
+        sys.exit(0)
 
-    with open("predicted_bracket.txt", "w") as outfile:
+    if len(sys.argv) > 1:
+        filename = arg
+    bracket = read_bracket(filename)
+
+    with open(f"predicted_{filename}", "w") as outfile:
         compute_bracket(bracket, team_stats_df, nn_model, gp_model, outfile)
 
 if __name__ == "__main__":

@@ -80,7 +80,6 @@ def main():
         validation_outputs = np.array(spreads[training_size:])
 
         mean_prediction, std_prediction = gp.predict(validation_data, return_std=True)
-        print(gp.score(validation_data, mean_prediction))
 
         spreads = mean_prediction.tolist()
 
@@ -89,9 +88,9 @@ def main():
             if s > 0 and r > 0 or s < 0 and r == 0:
                 correct += 1
         acc = correct / len(spreads)
-        
+
         print(f"Classification Accuracy: {acc}")
-        
+
 
 if __name__ == "__main__":
     main()
