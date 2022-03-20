@@ -60,7 +60,7 @@ def main():
 
         print(gp.kernel_)
 
-        with open("training_data.csv", "r") as f:
+        with open("spread_training_data.csv", "r") as f:
             rows = []
             for row in f.readlines():
                 row = [float(x) for x in row.strip().split(',')]
@@ -80,12 +80,20 @@ def main():
         validation_outputs = np.array(spreads[training_size:])
 
         mean_prediction, std_prediction = gp.predict(validation_data, return_std=True)
+        mae = np.sum(np.abs(np.subtract(mean_prediction, validation_outputs)))/len(validation_outputs)
+        rmse = np.sqrt(np.sum(np.square(np.subtract(mean_prediction, validation_outputs))) / len(validation_outputs))
+        mean = np.sum(validation_outputs) / len(validation_outputs)
+        stdev = np.sqrt(np.sum(np.square(np.subtract(mean, validation_outputs))) / len(validation_outputs))
+        print(f"MAE: {mae}")
+        print(f"RMSE: {rmse}")
+        print(f"General: {mean} +- {stdev}")
+        print(f"Score: {gp.score(training_data, training_outputs)}")
 
         spreads = mean_prediction.tolist()
 
         correct = 0
         for s, r in zip(spreads, validation_outputs):
-            if s > 0 and r > 0 or s < 0 and r == 0:
+            if s > 0 and r > 0 or s < 0 and r < 0:
                 correct += 1
         acc = correct / len(spreads)
 
