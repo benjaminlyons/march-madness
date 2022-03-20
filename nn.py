@@ -20,7 +20,7 @@ class Net(nn.Module):
         super().__init__()
 
         self.layers = nn.Sequential(
-            nn.Linear(30, 16),
+            nn.Linear(29, 16),
             nn.Dropout(DROP),
             nn.ReLU(),
             nn.BatchNorm1d(16),

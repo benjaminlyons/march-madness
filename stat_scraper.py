@@ -84,13 +84,20 @@ def scrape_team(teamname, linkname, year, results, schools_scraped):
         if not opp:
             continue
 
-        opp = opp.get_text()
+        opp = opp.find('a')
+        if not opp:
+            continue
+
+        link = opp.get('href').strip()
+        matches = re.search(r'/schools/(.*)/.*.html',link)
+        opp = matches.group(1)
 
         # if we already scraped games from this school
         # if opp in schools_scraped:
         #     continue
 
         res = row.find('td', attrs={'data-stat': 'game_result'}).get_text()
+        loc = row.find("td", attrs={'data-stat': 'game_location'}).get_text()
 
         # if its an L set it to 0, otherwise, set it to 1
         if res == "L":
@@ -98,9 +105,16 @@ def scrape_team(teamname, linkname, year, results, schools_scraped):
         else: 
             res = '1'
 
+        if loc == "N": #neutral site
+            loc = '0'
+        elif loc == "@": # away game
+            loc = '-1'
+        else: # if home team
+            loc = '1'
+
         score = row.find('td', attrs={'data-stat': 'pts'}).get_text()
         opp_score = row.find('td', attrs={'data-stat': "opp_pts"}).get_text()
-        results.append([teamname, str(year), opp, res, score, opp_score])
+        results.append([teamname, str(year), loc, opp, res, score, opp_score])
 
 
 def main():
@@ -113,10 +127,10 @@ def main():
     #         else:
     #             scrape_season(year, f)
     #
-    df = pd.read_csv("all_team_stats.csv")
-    results_headers = ["school1", "year", "school2", "result", "score1", "score2"]
+    df = pd.read_csv("data/all_team_stats.csv")
+    results_headers = ["school1", "year", "location", "school2", "result", "score1", "score2"]
     schools_scraped = set()
-    with open('all_game_logs.csv', 'w') as f:
+    with open('data/all_game_logs.csv', 'w') as f:
         f.write(",".join(results_headers) + "\n")
         for school, linkname, year in zip(df["School"], df["Link Name"], df["Year"]):
             print(f"Downloading {school} ({year})...", end='')

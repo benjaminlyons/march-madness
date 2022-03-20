@@ -48,7 +48,8 @@ def ensemble_predict(X, nn_model, gp_model):
     z_score = gp_pred[0] / gp_std[0]
     gp_prob = norm.cdf(z_score)
 
-
+    # assumes neutral site
+    X = np.concatenate((np.array([np.zeros(X.shape[0])]), X), axis=1)
     X = torch.tensor(X, dtype=torch.float).cuda()
     nn_y = nn_model(X).item()
 

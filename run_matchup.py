@@ -7,7 +7,7 @@ import pickle
 from nn import Net
 from ensemble import ensemble_predict
 
-STATS = ["W-L%", "SRS", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
+STATS = ["W-L%", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
 
 def compute_expected_result(team1, team2, team_stats_df, nn_model, gp_model):
     team1_stats = team_stats_df.loc[team_stats_df["School"] == team1].loc[team_stats_df["Year"] == 2022]
