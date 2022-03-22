@@ -118,21 +118,25 @@ def scrape_team(teamname, linkname, year, results, schools_scraped):
 
 
 def main():
-    # with open("all_team_stats.csv", "w") as f:
-    #     for year in range(2017, 2023):
-    #         if year == 2020:
-    #             continue
-    #         elif year == 2017:
-    #             scrape_season(year, f, True)
-    #         else:
-    #             scrape_season(year, f)
-    #
+    with open("data/all_team_stats.csv", "a") as f:
+        for year in range(2011, 2017):
+            if year == 2020:
+                continue
+            elif year == 2017:
+                scrape_season(year, f, True)
+            else:
+                scrape_season(year, f)
+            print(f"Downloaded season {year}...")
+            time.sleep(1)
+
     df = pd.read_csv("data/all_team_stats.csv")
     results_headers = ["school1", "year", "location", "school2", "result", "score1", "score2"]
     schools_scraped = set()
-    with open('data/all_game_logs.csv', 'w') as f:
-        f.write(",".join(results_headers) + "\n")
+    with open('data/all_game_logs.csv', 'a') as f:
+        # f.write(",".join(results_headers) + "\n")
         for school, linkname, year in zip(df["School"], df["Link Name"], df["Year"]):
+            if year >= 2017:
+                continue
             print(f"Downloading {school} ({year})...", end='')
             sys.stdout.flush()
             results = []

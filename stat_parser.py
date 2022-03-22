@@ -6,8 +6,8 @@ STATS = [ "W-L%",  "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", 
 
 HOME_ADV = 3 # amount to subtract from spread of the home team
 def nn_training_data():
-    game_logs_df = pd.read_csv("game_logs.csv")
-    team_stats_df = pd.read_csv("team_stats.csv")
+    game_logs_df = pd.read_csv("data/all_game_logs.csv")
+    team_stats_df = pd.read_csv("data/all_team_stats.csv")
 
     team_stats_df[STATS] = (team_stats_df[STATS] - team_stats_df[STATS].mean()) / team_stats_df[STATS].std()
     print(team_stats_df.loc[team_stats_df['School'] == 'Duke'][STATS].to_numpy()[0])
