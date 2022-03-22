@@ -4,43 +4,80 @@ import torch
 import pickle
 import random
 import numpy as np
+from compute_homefield_adv import compute_homefield_advs
+import pandas as pd
 
-def read_data(filename):
-    # load data
-    random.seed(722)
-    stats = []
-    results = []
-    with open(filename, "r") as f:
-        rows = []
-        for row in f.readlines():
-            row = [float(x) for x in row.strip().split(',')]
-            rows.append(row)
+STATS = ["W-L%", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
 
-        random.shuffle(rows)
-        for row in rows:
-            stats.append(np.array([row[:-1]]))
-            results.append(np.array([row[-1]]))
+class GamePredictor():
+    def __init__(self, nn_path, gp_path):
+        self.nn_model = torch.load("best_model.pth")['model'].cuda()
+        self.nn_model.eval()
 
-    stats = torch.tensor(np.array(stats), dtype=torch.float).cuda()
-    results = torch.tensor(np.array(results), dtype=torch.float).cuda()
+        with open("gp_model.pkl", 'rb') as f:
+            self.gp_model = pickle.load(f)
 
-    # now divide into different types
-    size = stats.shape[0]
-    training_size = int(size*.6)
-    validation_size = int(size*.2)
-    testing_size = size - training_size - validation_size
+        self.homefield_adv = compute_homefield_advs()
 
-    training_data = stats[:training_size]
-    training_outputs = results[:training_size]
-    validation_data = stats[training_size:training_size+validation_size]
-    validation_outputs = results[training_size:training_size+validation_size]
-    testing_data = stats[training_size+validation_size:]
-    testing_outputs = results[training_size+validation_size:]
+        self.team_stats = pd.read_csv("team_stats.csv")
+        self.team_stats[STATS] = (self.team_stats[STATS] - self.team_stats[STATS].mean()) / self.team_stats[STATS].std()
 
-    return (training_data, training_outputs, validation_data, validation_outputs, testing_data, testing_outputs)
+    # if home is true, then team1 is the home team
+    # if home is false, then the game is played at a neutral site
+    def predict(self, team1, team2, home=False, year=2022):
+        team1_stats = self.team_stats.loc[self.team_stats["School"] == team1].loc[self.team_stats["Year"] == year]
+        team2_stats = self.team_stats.loc[self.team_stats["School"] == team2].loc[self.team_stats["Year"] == year]
 
-def ensemble_predict(X, nn_model, gp_model):
+        team1_stats = team1_stats[STATS].to_numpy()
+        team2_stats = team2_stats[STATS].to_numpy()
+
+        X = np.concatenate((team1_stats, team2_stats), axis=1)
+
+        home_adv = 0
+        if home:
+            home_adv = self.homefield_adv[team1]
+
+        # put both teams in both orders and take the avg
+        nn_prob1, gp_prob1, gp_pred1, gp_std1 = self.__predict(X, home_adv)
+        X = np.concatenate((team2_stats, team1_stats), axis=1)
+        nn_prob2, gp_prob2, gp_pred2, gp_std2 = self.__predict(X, -home_adv)
+
+        nn_prob = (nn_prob1 + 1 - nn_prob2) / 2
+        gp_prob = (gp_prob1 + 1 - gp_prob2) / 2
+        gp_pred = (gp_pred1 - gp_pred2) / 2
+        gp_std  = (gp_std1 + gp_std2) /2 
+        result = (nn_prob + gp_prob) / 2
+        print("NN:", nn_prob)
+        print("GP:", gp_prob)
+
+        return result, gp_pred, gp_std
+
+    # consider adding home field advantage variance as well
+    def __predict(self, X, home_adv=0):
+        gp_pred, gp_std = self.gp_model.predict(X, return_std=True)
+        gp_pred += home_adv
+
+        # compute probability of gp prediction
+        # first find the z_score of 0
+        # take the negative value of it
+        z_score = gp_pred[0] / gp_std[0]
+        gp_prob = norm.cdf(z_score)
+
+        # assumes neutral site
+        if not home_adv:
+            X = np.concatenate((np.array([np.zeros(X.shape[0])]), X), axis=1)
+        elif home_adv > 0:
+            X = np.concatenate((np.array([np.ones(X.shape[0])]), X), axis=1)
+        else:
+            X = np.concatenate((np.array([-np.ones(X.shape[0])]), X), axis=1)
+        X = torch.tensor(X, dtype=torch.float).cuda()
+        nn_y = self.nn_model(X).item()
+
+        return nn_y, gp_prob, gp_pred[0], gp_std[0]
+
+def ensemble_predict(X, nn_model, gp_model, home_adv=0):
     gp_pred, gp_std = gp_model.predict(X, return_std=True)
+    # gp_pred += home_adv
 
     # compute probability of gp prediction
     # first find the z_score of 0
@@ -48,35 +85,21 @@ def ensemble_predict(X, nn_model, gp_model):
     z_score = gp_pred[0] / gp_std[0]
     gp_prob = norm.cdf(z_score)
 
-    # assumes neutral site
     X = np.concatenate((np.array([np.zeros(X.shape[0])]), X), axis=1)
     X = torch.tensor(X, dtype=torch.float).cuda()
     nn_y = nn_model(X).item()
-
-
     return nn_y, gp_prob, gp_pred[0], gp_std[0]
 
+
 def main():
+    predictor = GamePredictor("best_model.pth", "gp_model.pkl")
+    team1 = "Alabama"
+    team2 = "Notre Dame"
 
-    # load the models
-    nn_model = torch.load("best_model.pth")['model'].cuda()
-    nn_model.eval()
+    res, pred, std = predictor.predict(team1, team2, False)
 
-    with open("gp_model.pkl", 'rb') as f:
-        gp_model = pickle.load(f)
-
-    _, _, _, _, testing_data, testing_output = read_data("training_data.csv")
-
-    testing_data = testing_data.cpu().detach().numpy()
-    testing_output = testing_output.cpu().detach().numpy().tolist()
-
-    correct = 0
-    for X, y in zip(testing_data, testing_output):
-        nn_y, gp_prob, gp_pred, gp_std = ensemble_predict(X, nn_model, gp_model)
-        result = 0.5*nn_y + 0.5*gp_prob
-        if result > 0.5 and y[0] == 1 or result < 0.5 and y[0] == 0:
-            correct += 1
-    print(f"Accuracy: {correct/len(testing_output)}")
+    print("{} win prob: {:0.2f}".format(team1, res))
+    print("Favored by {:0.2f} points".format(pred))
 
 if __name__ == "__main__":
     main()

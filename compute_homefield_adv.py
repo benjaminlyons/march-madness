@@ -61,5 +61,11 @@ def compute_homefield_advs():
 
     return homefield_adv
 
+def main():
+    hf = compute_homefield_advs()
+    with open("data/homefield_advs.txt", "w") as f:
+        for team, val in hf.items():
+            f.write(f"{team}: {val}\n")
+
 if __name__ == "__main__":
     main()

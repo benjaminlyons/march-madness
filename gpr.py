@@ -88,6 +88,7 @@ def main():
         print(f"RMSE: {rmse}")
         print(f"General: {mean} +- {stdev}")
         print(f"Score: {gp.score(training_data, training_outputs)}")
+        print(f"Score: {gp.score(validation_data, validation_outputs)}")
 
         spreads = mean_prediction.tolist()
 
