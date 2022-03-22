@@ -47,8 +47,8 @@ class GamePredictor():
         gp_pred = (gp_pred1 - gp_pred2) / 2
         gp_std  = (gp_std1 + gp_std2) /2 
         result = (nn_prob + gp_prob) / 2
-        print("NN:", nn_prob)
-        print("GP:", gp_prob)
+        # print("NN:", nn_prob)
+        # print("GP:", gp_prob)
 
         return result, gp_pred, gp_std
 

@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
 import random
+from compute_homefield_adv import compute_homefield_advs
 
 STATS = [ "W-L%",  "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
 
-HOME_ADV = 3 # amount to subtract from spread of the home team
 def nn_training_data():
     game_logs_df = pd.read_csv("data/all_game_logs.csv")
     team_stats_df = pd.read_csv("data/all_team_stats.csv")
@@ -48,6 +48,8 @@ def gp_training_data():
     # print(team_stats_df)
     # print(team_stats_df["School"].values)
 
+    homefield_advs = compute_homefield_advs()
+
     with open("spread_training_data.csv", "w") as f:
         for index, game in game_logs_df.iterrows():
             team1 = game["school1"]
@@ -69,15 +71,21 @@ def gp_training_data():
                 print("Index error")
                 continue
 
-            spread = game["score1"] - game["score2"] - loc*HOME_ADV
+            spread = game["score1"] - game["score2"]
+
+            if loc == 1:
+                spread -= homefield_advs[team1]
+            elif loc == -1:
+                team2_name = team_stats_df.loc[team_stats_df["Link Name"] == team2].loc[team_stats_df["Year"] == year]["School"].item()
+                spread += homefield_advs[team2_name]
 
             f.write(",".join([str(x) for x in team1_stats]) + ",")
             f.write(",".join([str(x) for x in team2_stats]) + ",")
             f.write(str(spread) + "\n")
 
 def main():
-    # gp_training_data()
-    nn_training_data()
+    gp_training_data()
+    # nn_training_data()
 
 if __name__ == "__main__":
     main()
