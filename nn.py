@@ -13,14 +13,14 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 DROP = 0.4
 batch_size = 256
-EPOCHS = 500
+EPOCHS = 250
 
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
 
         self.layers = nn.Sequential(
-            nn.Linear(29, 16),
+            nn.Linear(28, 16),
             nn.Dropout(DROP),
             nn.ReLU(),
             nn.BatchNorm1d(16),

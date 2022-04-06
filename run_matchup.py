@@ -87,7 +87,7 @@ def individual_matchups(team_stats_df, predictor):
         
         print(f"Computing {team1} vs {team2}")
 
-        result, gp_pred, gp_std = predictor.predict(team1, team2, home=True)
+        result, gp_pred, gp_std = predictor.predict(team1, team2, home=False)
 
         if result >= 0.5:
             win_odds = -100*result / (1-result)

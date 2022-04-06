@@ -20,7 +20,7 @@ def estimate_noise(prior_mean, prior_var, data):
 
 def compute_homefield_advs():
     prior_mean = 3.5
-    prior_var = 1.0
+    prior_var = .75
     games_df = pd.read_csv("data/all_game_logs.csv")
     teams_df = pd.read_csv("data/all_team_stats.csv")
 
@@ -51,23 +51,38 @@ def compute_homefield_advs():
     data = np.array(list(homefield_diffs.values()))
     mu_n, sigma_n2 = estimate_noise(prior_mean, prior_var, data)
 
-    print("Noise mean:", mu_n)
-    print("Noise std:", sigma_n2)
+    # print("Noise mean:", mu_n)
+    # print("Noise std:", sigma_n2)
 
     homefield_adv = {}
     for team, val in homefield_diffs.items():
-        adv, std = posterior(prior_mean, prior_var, mu_n, sigma_n2, val)
-        homefield_adv[team] = adv
+        adv, var = posterior(prior_mean, prior_var, mu_n, sigma_n2, val)
+        homefield_adv[team] = adv, var
     advs = np.array(list(homefield_adv.values()))
     new_mean = np.mean(advs)
     new_var = np.var(advs)
-    print(new_mean)
-    print(new_var)
+    # print(new_mean)
+    # print(new_var)
 
-    return homefield_adv
+    # also compute percentage of wins that are home_games
+    home_wins = 0
+    count = 0
+    for index, game in games_df.iterrows():
+        location = game["location"]
+        result = game["result"]
+        if location == 1 and result == 1 or location == -1 and result == 0:
+            home_wins += 1
+        count += 1
+
+    win_home_perc = home_wins / count
+    loss_home_perc = (count - home_wins)  / count
+    print(win_home_perc)
+    print(loss_home_perc)
+
+    return homefield_adv, (win_home_perc, loss_home_perc)
 
 def main():
-    hf = compute_homefield_advs()
+    hf, hf_probs = compute_homefield_advs()
     with open("data/homefield_advs.txt", "w") as f:
         for team, val in hf.items():
             f.write(f"{team}: {val}\n")

@@ -3,7 +3,7 @@ import numpy as np
 import random
 from compute_homefield_adv import compute_homefield_advs
 
-STATS = [ "W-L%",  "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
+STATS = [ "W-L%", "SOS", "Pace", "ORtg", "FTr", "3PAr", "TS%", "TRB%", "AST%", "STL%", "BLK%", "eFG%", "TOV%", "ORB%"]
 
 def nn_training_data():
     game_logs_df = pd.read_csv("data/all_game_logs.csv")
@@ -12,6 +12,7 @@ def nn_training_data():
     team_stats_df[STATS] = (team_stats_df[STATS] - team_stats_df[STATS].mean()) / team_stats_df[STATS].std()
     print(team_stats_df.loc[team_stats_df['School'] == 'Duke'][STATS].to_numpy()[0])
     print(game_logs_df)
+    homefield_advs, _ = compute_homefield_advs()
 
     with open("training_data.csv", "w") as f:
         for index, game in game_logs_df.iterrows():
@@ -34,7 +35,23 @@ def nn_training_data():
 
             # print(team1_stats)
             # print(team2_stats)
-            f.write(str(location) + ",")
+            home_adv = 0
+            if location == 1:
+                home_adv = homefield_advs[team1][0]
+            elif location == -1:
+                team2_name = team_stats_df.loc[team_stats_df["Link Name"] == team2].loc[team_stats_df["Year"] == year]["School"].item()
+                home_adv = -homefield_advs[team2_name][0]
+
+            spread = game["score1"] - game["score2"]
+            spread += home_adv
+
+            # use home_adjusted spread to determine who should have won the game
+            if spread > 0:
+                result = 1
+            else:
+                result = 0
+
+            # f.write(str(location) + ",")
             f.write(",".join([str(x) for x in team1_stats]) + ",")
             f.write(",".join([str(x) for x in team2_stats]) + ",")
             f.write(str(result) + "\n")
@@ -48,7 +65,7 @@ def gp_training_data():
     # print(team_stats_df)
     # print(team_stats_df["School"].values)
 
-    homefield_advs = compute_homefield_advs()
+    homefield_advs, _ = compute_homefield_advs()
 
     with open("spread_training_data.csv", "w") as f:
         for index, game in game_logs_df.iterrows():
@@ -74,18 +91,18 @@ def gp_training_data():
             spread = game["score1"] - game["score2"]
 
             if loc == 1:
-                spread -= homefield_advs[team1]
+                spread -= homefield_advs[team1][0]
             elif loc == -1:
                 team2_name = team_stats_df.loc[team_stats_df["Link Name"] == team2].loc[team_stats_df["Year"] == year]["School"].item()
-                spread += homefield_advs[team2_name]
+                spread += homefield_advs[team2_name][0]
 
             f.write(",".join([str(x) for x in team1_stats]) + ",")
             f.write(",".join([str(x) for x in team2_stats]) + ",")
             f.write(str(spread) + "\n")
 
 def main():
-    gp_training_data()
-    # nn_training_data()
+    # gp_training_data()
+    nn_training_data()
 
 if __name__ == "__main__":
     main()
